@@ -5350,7 +5350,7 @@ var $author$project$PhotoGroove$view = function (model) {
 				$elm$html$Html$div,
 				_List_fromArray(
 					[
-						$elm$html$Html$Attributes$id('chosen-size')
+						$elm$html$Html$Attributes$id('choose-size')
 					]),
 				A2(
 					$elm$core$List$map,
