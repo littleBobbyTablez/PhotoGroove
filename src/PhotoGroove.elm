@@ -2,17 +2,23 @@ module PhotoGroove exposing (main)
 
 import Browser
 import Html exposing (h3, div, h1, img, text, Html, label, input)
-import Html.Attributes exposing (..)
+import Html.Attributes exposing (class, id, classList, src, type_, name)
 import Html.Events exposing (onClick)
 import Array exposing (Array)
 import Html exposing (button)
 import Random
 import Http
+import Json.Decode exposing (Decoder, int, list, string, succeed)
+import Json.Decode.Pipeline exposing (optional, required)
+import Html.Attributes exposing (title)
 
 type ThumbnailSize = Small | Medium | Large
 
 type alias Photo =
-    { url : String }
+    { url : String
+    , size : Int
+    , title : String
+    }
 
 type alias Model =
     { status : Status
@@ -24,12 +30,19 @@ type Msg
     | ClickedSize ThumbnailSize
     | ClickedSupriseMe
     | GotRandomPhoto Photo
-    | GotPhotos (Result Http.Error String)
+    | GotPhotos (Result Http.Error (List Photo))
 
 type Status
     = Loading
     | Loaded (List Photo) String
     | Errored String
+
+photoDecoder : Decoder Photo
+photoDecoder =
+    succeed Photo
+        |> required "url" string
+        |> required "size" int
+        |> optional "title" string "(untitled)"
 
 photoListUrl: String
 photoListUrl =
@@ -44,9 +57,9 @@ initialModel =
 initialCmd : Cmd Msg
 initialCmd =
     Http.get
-    { url = photoListUrl ++ "photos/list"
-    , expect = Http.expectString GotPhotos
-    }
+        { url = "http://elm-in-action.com/photos/list.json"
+        , expect = Http.expectJson GotPhotos (list photoDecoder)
+        }
 
 sizeToString : ThumbnailSize -> String
 sizeToString size =
@@ -59,7 +72,6 @@ sizeToString size =
 
         Large ->
             "large"
-
 
 
 -- view
@@ -108,6 +120,7 @@ viewThumbnail : String -> Photo -> Html Msg
 viewThumbnail selectedUrl thumb =
     img
         [ src (photoListUrl ++ thumb.url)
+        , title (thumb.title ++ " [" ++ String.fromInt thumb.size ++ " KB]")
         , classList [ ( "selected", selectedUrl == thumb.url ) ]
         , onClick (ClickedPhoto thumb.url)
         ]
@@ -158,21 +171,18 @@ update msg model =
     GotRandomPhoto photo ->
         ( { model | status  = selectUrl photo.url model.status }, Cmd.none )
 
+    GotPhotos (Ok photos) ->
+       case photos of
+           first :: rest ->
+               ( { model | status = Loaded photos first.url }
+               , Cmd.none
+               )
 
-    GotPhotos (Ok responseStr) ->
-        case String.split "," responseStr of
-            (firstUrl :: _) as urls ->
-                let
-                    photos =
-                        List.map Photo urls
-                in
-                ( { model | status = Loaded photos firstUrl }, Cmd.none )
-
-            [] ->
-                ( { model | status = Errored "0 photos found"}, Cmd.none )
+           [] ->
+               ( { model | status = Errored "0 photos found"}, Cmd.none )
 
     GotPhotos (Err _) ->
-        (model, Cmd.none)
+            (model, Cmd.none)
 
 main : Program () Model Msg
 main =
